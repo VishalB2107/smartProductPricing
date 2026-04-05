@@ -1,0 +1,21 @@
+{
+  "name": "smart-product-pricing",
+  "version": "1.0.0",
+  "description": "Smart Product Pricing - AI-powered product price finder",
+  "type": "module",
+  "scripts": {
+    "build": "cd frontend && npm run build",
+    "dev": "concurrently \"cd backend && npm start\" \"cd frontend && npm run dev\"",
+    "deploy": "vercel"
+  },
+  "keywords": [
+    "product",
+    "pricing",
+    "ai"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
