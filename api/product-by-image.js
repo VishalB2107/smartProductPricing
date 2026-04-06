@@ -58,7 +58,15 @@ function readCSVWithLimit(filePath, limitRows = 1000) {
 }
 
 export default function handler(req, res) {
-  // Enable CORS
+  // Log environment info
+  console.log("🔧 Environment:", {
+    nodeEnv: process.env.NODE_ENV,
+    cwd: process.cwd(),
+    platform: process.platform,
+    timestamp: new Date().toISOString()
+  });
+
+  // Enable CORS for all origins
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader(
@@ -69,6 +77,12 @@ export default function handler(req, res) {
     "Access-Control-Allow-Headers",
     "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
   );
+
+  console.log("📊 Request:", {
+    method: req.method,
+    url: req.url,
+    headers: req.headers
+  });
 
   if (req.method === "OPTIONS") {
     res.status(200).end();
@@ -260,4 +274,31 @@ export default function handler(req, res) {
   }
 
   res.status(405).json({ message: "Method not allowed" });
+}
+
+// Health check endpoint - useful for debugging
+export async function healthCheck(req, res) {
+  console.log("💚 Health check requested");
+  
+  const sampleTestPath = path.join(process.cwd(), "sample_test.csv");
+  const sampleTestOutPath = path.join(process.cwd(), "sample_test_out.csv");
+  
+  return res.json({
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    cwd: process.cwd(),
+    files: {
+      testCsv: {
+        path: sampleTestPath,
+        exists: fs.existsSync(sampleTestPath),
+        size: fs.existsSync(sampleTestPath) ? fs.statSync(sampleTestPath).size : 0
+      },
+      priceCsv: {
+        path: sampleTestOutPath,
+        exists: fs.existsSync(sampleTestOutPath),
+        size: fs.existsSync(sampleTestOutPath) ? fs.statSync(sampleTestOutPath).size : 0
+      }
+    }
+  });
 }
