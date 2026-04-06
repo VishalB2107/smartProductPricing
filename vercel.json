@@ -5,11 +5,6 @@
   "env": {
     "NODE_ENV": "production"
   },
-  "includes": [
-    "sample_test.csv",
-    "sample_test_out.csv",
-    "api/**"
-  ],
   "rewrites": [
     {
       "source": "/api/:path*",
