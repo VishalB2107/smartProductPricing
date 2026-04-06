@@ -80,6 +80,7 @@ export default function handler(req, res) {
       const { imageUrl } = req.body;
 
       if (!imageUrl) {
+        console.error("❌ Error: Image URL is empty");
         return res.status(400).json({
           success: false,
           message: "Image URL cannot be empty",
@@ -87,18 +88,51 @@ export default function handler(req, res) {
       }
 
       const imageUrlTrimmed = imageUrl.trim();
+      console.log("🔍 Searching for image URL:", imageUrlTrimmed);
 
-      // Try to read CSV files
-      const sampleTestPath = path.join(process.cwd(), "sample_test.csv");
-      const sampleTestOutPath = path.join(process.cwd(), "sample_test_out.csv");
+      // Try to read CSV files - try multiple paths
+      let sampleTestPath = path.join(process.cwd(), "sample_test.csv");
+      let sampleTestOutPath = path.join(process.cwd(), "sample_test_out.csv");
+      
+      console.log("📁 Looking for CSV files at:", process.cwd());
+      console.log("📄 Test CSV path:", sampleTestPath);
+      console.log("📄 Price CSV path:", sampleTestOutPath);
+
+      // Check if files exist
+      const testFileExists = fs.existsSync(sampleTestPath);
+      const priceFileExists = fs.existsSync(sampleTestOutPath);
+      
+      console.log("✅ Test CSV exists:", testFileExists);
+      console.log("✅ Price CSV exists:", priceFileExists);
 
       const testRows = readCSVWithLimit(sampleTestPath, 1000);
       const priceRows = readCSVWithLimit(sampleTestOutPath, 1000);
+
+      console.log("📊 Loaded test rows:", testRows.length);
+      console.log("💰 Loaded price rows:", priceRows.length);
+
+      if (testRows.length === 0) {
+        console.error("❌ Error: No test data loaded from CSV");
+        return res.status(500).json({
+          success: false,
+          message: "Failed to load product database. CSV files not found or empty.",
+        });
+      }
+
+      if (priceRows.length === 0) {
+        console.error("❌ Error: No price data loaded from CSV");
+        return res.status(500).json({
+          success: false,
+          message: "Failed to load price data. CSV files not found or empty.",
+        });
+      }
 
       // Find matching product
       let matchedProduct = testRows.find(
         (row) => row.image_link && row.image_link.trim() === imageUrlTrimmed
       );
+
+      console.log("🔎 Exact match found:", !!matchedProduct);
 
       // Fallback: Partial match
       if (!matchedProduct) {
@@ -107,9 +141,11 @@ export default function handler(req, res) {
             row.image_link &&
             row.image_link.toLowerCase().includes(imageUrlTrimmed.toLowerCase())
         );
+        console.log("🔎 Partial match found:", !!matchedProduct);
       }
 
       if (!matchedProduct) {
+        console.error("❌ Error: No product found matching image URL");
         return res.status(404).json({
           success: false,
           found: false,
@@ -121,7 +157,16 @@ export default function handler(req, res) {
       const description =
         matchedProduct.catalog_content || "No description available";
 
-      const priceRow = priceRows.find((row) => row.sample_id === sampleId);
+      console.log("✅ Matched product ID:", sampleId);
+      
+      // Convert sample_id to string for matching
+      const priceRow = priceRows.find((row) => row.sample_id.toString() === sampleId.toString());
+      
+      console.log("💰 Price row found:", !!priceRow);
+      if (priceRow) {
+        console.log("💰 Price:", priceRow.price);
+      }
+
       const price = priceRow ? parseFloat(priceRow.price) : null;
 
       return res.json({
@@ -133,7 +178,8 @@ export default function handler(req, res) {
         message: "Product found successfully",
       });
     } catch (error) {
-      console.error("Error:", error.message);
+      console.error("❌ Server Error:", error.message);
+      console.error("📍 Stack trace:", error.stack);
       return res.status(500).json({
         success: false,
         message: "Server error: " + error.message,
@@ -146,6 +192,7 @@ export default function handler(req, res) {
       const { url } = req.query;
 
       if (!url) {
+        console.error("❌ Error: URL query parameter is missing");
         return res.status(400).json({
           success: false,
           message: "Missing 'url' query parameter",
@@ -155,8 +202,15 @@ export default function handler(req, res) {
       const sampleTestPath = path.join(process.cwd(), "sample_test.csv");
       const sampleTestOutPath = path.join(process.cwd(), "sample_test_out.csv");
 
+      console.log("🔍 GET Request: Searching for image URL:", url);
+      console.log("✅ Test CSV exists:", fs.existsSync(sampleTestPath));
+      console.log("✅ Price CSV exists:", fs.existsSync(sampleTestOutPath));
+
       const testRows = readCSVWithLimit(sampleTestPath, 1000);
       const priceRows = readCSVWithLimit(sampleTestOutPath, 1000);
+
+      console.log("📊 Loaded test rows:", testRows.length);
+      console.log("💰 Loaded price rows:", priceRows.length);
 
       let matchedProduct = testRows.find(
         (row) => row.image_link && row.image_link.trim() === url.trim()
@@ -171,6 +225,7 @@ export default function handler(req, res) {
       }
 
       if (!matchedProduct) {
+        console.error("❌ Error: No product found matching image URL");
         return res.status(404).json({
           success: false,
           found: false,
@@ -182,8 +237,10 @@ export default function handler(req, res) {
       const description =
         matchedProduct.catalog_content || "No description available";
 
-      const priceRow = priceRows.find((row) => row.sample_id === sampleId);
+      const priceRow = priceRows.find((row) => row.sample_id.toString() === sampleId.toString());
       const price = priceRow ? parseFloat(priceRow.price) : null;
+
+      console.log("✅ Product found - ID:", sampleId, "Price:", price);
 
       return res.json({
         success: true,
@@ -193,7 +250,8 @@ export default function handler(req, res) {
         message: "Product found successfully",
       });
     } catch (error) {
-      console.error("Error:", error.message);
+      console.error("❌ Server Error:", error.message);
+      console.error("📍 Stack trace:", error.stack);
       return res.status(500).json({
         success: false,
         message: "Server error: " + error.message,
