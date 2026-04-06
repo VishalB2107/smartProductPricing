@@ -11,7 +11,7 @@ app.use(fileUpload()); // Enable file upload support
 app.use(express.json()); // Parse JSON request bodies
 
 let products = [];
-const filePath = path.join(__dirname, "../dataset/test.csv");
+const filePath = path.join(__dirname, "../dataset/train.csv");
 const PRODUCT_LIMIT = 1000; // Load only top 1,000 products for faster loading
 
 let rowCount = 0;
@@ -59,7 +59,7 @@ function readCSVWithLimit(csvFilePath, limitRows = 1000) {
 app.post("/product-by-image", async (req, res) => {
   try {
     // CASE 1: URL Input (JSON body)
-    if (req.body.imageUrl) {
+    if (req.body && req.body.imageUrl) {
       const imageUrl = req.body.imageUrl.trim();
 
       if (!imageUrl) {
