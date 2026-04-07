@@ -1,165 +1,63 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+const fs = require("fs");
+const path = require("path");
+const { readCSVWithLimit } = require("../lib/csv-utils");
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const PRODUCT_LIMIT = 1000;
 
-// Simple CSV parser function
-function parseCSV(data) {
-  const lines = data.toString().split("\n");
-  const headers = lines[0].split(",");
-  const result = [];
-  
-  for (let i = 1; i < lines.length; i++) {
-    if (!lines[i].trim()) continue;
-    
-    const obj = {};
-    const line = lines[i];
-    
-    // Handle CSV with quoted fields
-    let currentField = "";
-    let inQuotes = false;
-    let fieldIndex = 0;
-    
-    for (let j = 0; j < line.length; j++) {
-      const char = line[j];
-      
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === "," && !inQuotes) {
-        obj[headers[fieldIndex].trim()] = currentField.replace(/^"|"$/g, "");
-        currentField = "";
-        fieldIndex++;
-      } else {
-        currentField += char;
-      }
-    }
-    
-    if (fieldIndex < headers.length) {
-      obj[headers[fieldIndex].trim()] = currentField.replace(/^"|"$/g, "");
-    }
-    
-    result.push(obj);
-  }
-  
-  return result;
-}
-
-function readCSVWithLimit(filePath, limitRows = 1000) {
-  try {
-    const data = fs.readFileSync(filePath, "utf-8");
-    const rows = parseCSV(data);
-    return rows.slice(0, limitRows);
-  } catch (error) {
-    console.error("Error reading CSV:", error);
-    return [];
-  }
-}
-
-export default function handler(req, res) {
-  // Log environment info
-  console.log("🔧 Environment:", {
-    nodeEnv: process.env.NODE_ENV,
-    cwd: process.cwd(),
-    platform: process.platform,
-    timestamp: new Date().toISOString()
-  });
-
-  // Enable CORS for all origins
-  res.setHeader("Access-Control-Allow-Credentials", "true");
+// ============================================
+// Enable CORS
+// ============================================
+function setCorsHeaders(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,OPTIONS,PATCH,DELETE,POST,PUT"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
-  );
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
 
-  console.log("📊 Request:", {
-    method: req.method,
-    url: req.url,
-    headers: req.headers
-  });
+// ============================================
+// API ENDPOINT: Find product by image
+// Handles both URL input (POST/GET) and file upload (POST)
+// ============================================
+async function handler(req, res) {
+  setCorsHeaders(res);
 
+  // Handle OPTIONS request for CORS
   if (req.method === "OPTIONS") {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
-  if (req.method === "POST") {
-    try {
-      const { imageUrl } = req.body;
+  try {
+    // ============================================
+    // CASE 1: POST with JSON body (imageUrl)
+    // ============================================
+    if (req.method === "POST" && req.body && req.body.imageUrl) {
+      const imageUrl = req.body.imageUrl.trim();
 
       if (!imageUrl) {
-        console.error("❌ Error: Image URL is empty");
         return res.status(400).json({
           success: false,
           message: "Image URL cannot be empty",
         });
       }
 
-      const imageUrlTrimmed = imageUrl.trim();
-      console.log("🔍 Searching for image URL:", imageUrlTrimmed);
+      // Read first 1,000 rows from sample_test.csv
+      const sampleTestPath = path.join(process.cwd(), "sample_test.csv");
+      const testRows = await readCSVWithLimit(sampleTestPath, PRODUCT_LIMIT);
 
-      // Try to read CSV files - try multiple paths
-      let sampleTestPath = path.join(process.cwd(), "sample_test.csv");
-      let sampleTestOutPath = path.join(process.cwd(), "sample_test_out.csv");
-      
-      console.log("📁 Looking for CSV files at:", process.cwd());
-      console.log("📄 Test CSV path:", sampleTestPath);
-      console.log("📄 Price CSV path:", sampleTestOutPath);
-
-      // Check if files exist
-      const testFileExists = fs.existsSync(sampleTestPath);
-      const priceFileExists = fs.existsSync(sampleTestOutPath);
-      
-      console.log("✅ Test CSV exists:", testFileExists);
-      console.log("✅ Price CSV exists:", priceFileExists);
-
-      const testRows = readCSVWithLimit(sampleTestPath, 1000);
-      const priceRows = readCSVWithLimit(sampleTestOutPath, 1000);
-
-      console.log("📊 Loaded test rows:", testRows.length);
-      console.log("💰 Loaded price rows:", priceRows.length);
-
-      if (testRows.length === 0) {
-        console.error("❌ Error: No test data loaded from CSV");
-        return res.status(500).json({
-          success: false,
-          message: "Failed to load product database. CSV files not found or empty.",
-        });
-      }
-
-      if (priceRows.length === 0) {
-        console.error("❌ Error: No price data loaded from CSV");
-        return res.status(500).json({
-          success: false,
-          message: "Failed to load price data. CSV files not found or empty.",
-        });
-      }
-
-      // Find matching product
+      // Find matching image (exact match first)
       let matchedProduct = testRows.find(
-        (row) => row.image_link && row.image_link.trim() === imageUrlTrimmed
+        (row) => row.image_link && row.image_link.trim() === imageUrl
       );
-
-      console.log("🔎 Exact match found:", !!matchedProduct);
 
       // Fallback: Partial match
       if (!matchedProduct) {
         matchedProduct = testRows.find(
           (row) =>
             row.image_link &&
-            row.image_link.toLowerCase().includes(imageUrlTrimmed.toLowerCase())
+            row.image_link.toLowerCase().includes(imageUrl.toLowerCase())
         );
-        console.log("🔎 Partial match found:", !!matchedProduct);
       }
 
       if (!matchedProduct) {
-        console.error("❌ Error: No product found matching image URL");
         return res.status(404).json({
           success: false,
           found: false,
@@ -167,20 +65,15 @@ export default function handler(req, res) {
         });
       }
 
+      // Extract product info
       const sampleId = matchedProduct.sample_id;
-      const description =
-        matchedProduct.catalog_content || "No description available";
+      const description = matchedProduct.catalog_content || "No description available";
 
-      console.log("✅ Matched product ID:", sampleId);
-      
-      // Convert sample_id to string for matching
-      const priceRow = priceRows.find((row) => row.sample_id.toString() === sampleId.toString());
-      
-      console.log("💰 Price row found:", !!priceRow);
-      if (priceRow) {
-        console.log("💰 Price:", priceRow.price);
-      }
+      // Read first 1,000 rows from sample_test_out.csv to find price
+      const sampleTestOutPath = path.join(process.cwd(), "sample_test_out.csv");
+      const priceRows = await readCSVWithLimit(sampleTestOutPath, PRODUCT_LIMIT);
 
+      const priceRow = priceRows.find((row) => row.sample_id === sampleId);
       const price = priceRow ? parseFloat(priceRow.price) : null;
 
       return res.json({
@@ -191,55 +84,40 @@ export default function handler(req, res) {
         source: "url-match",
         message: "Product found successfully",
       });
-    } catch (error) {
-      console.error("❌ Server Error:", error.message);
-      console.error("📍 Stack trace:", error.stack);
-      return res.status(500).json({
-        success: false,
-        message: "Server error: " + error.message,
-      });
     }
-  }
 
-  if (req.method === "GET") {
-    try {
-      const { url } = req.query;
+    // ============================================
+    // CASE 2: GET with URL query parameter
+    // ============================================
+    if (req.method === "GET" && req.query && req.query.url) {
+      const imageUrl = req.query.url;
 
-      if (!url) {
-        console.error("❌ Error: URL query parameter is missing");
+      if (!imageUrl) {
         return res.status(400).json({
           success: false,
           message: "Missing 'url' query parameter",
         });
       }
 
+      // Read first 100 rows from sample_test.csv
       const sampleTestPath = path.join(process.cwd(), "sample_test.csv");
-      const sampleTestOutPath = path.join(process.cwd(), "sample_test_out.csv");
+      const testRows = await readCSVWithLimit(sampleTestPath, 100);
 
-      console.log("🔍 GET Request: Searching for image URL:", url);
-      console.log("✅ Test CSV exists:", fs.existsSync(sampleTestPath));
-      console.log("✅ Price CSV exists:", fs.existsSync(sampleTestOutPath));
-
-      const testRows = readCSVWithLimit(sampleTestPath, 1000);
-      const priceRows = readCSVWithLimit(sampleTestOutPath, 1000);
-
-      console.log("📊 Loaded test rows:", testRows.length);
-      console.log("💰 Loaded price rows:", priceRows.length);
-
+      // Find matching image (exact match)
       let matchedProduct = testRows.find(
-        (row) => row.image_link && row.image_link.trim() === url.trim()
+        (row) => row.image_link && row.image_link.trim() === imageUrl.trim()
       );
 
+      // Fallback: Partial match
       if (!matchedProduct) {
         matchedProduct = testRows.find(
           (row) =>
             row.image_link &&
-            row.image_link.toLowerCase().includes(url.toLowerCase())
+            row.image_link.toLowerCase().includes(imageUrl.toLowerCase())
         );
       }
 
       if (!matchedProduct) {
-        console.error("❌ Error: No product found matching image URL");
         return res.status(404).json({
           success: false,
           found: false,
@@ -247,14 +125,28 @@ export default function handler(req, res) {
         });
       }
 
+      // Extract sample_id and description
       const sampleId = matchedProduct.sample_id;
-      const description =
-        matchedProduct.catalog_content || "No description available";
+      const description = matchedProduct.catalog_content || "No description available";
 
-      const priceRow = priceRows.find((row) => row.sample_id.toString() === sampleId.toString());
-      const price = priceRow ? parseFloat(priceRow.price) : null;
+      // Read first 100 rows from sample_test_out.csv to find price
+      const sampleTestOutPath = path.join(process.cwd(), "sample_test_out.csv");
+      const priceRows = await readCSVWithLimit(sampleTestOutPath, 100);
 
-      console.log("✅ Product found - ID:", sampleId, "Price:", price);
+      // Find matching price
+      const priceRow = priceRows.find((row) => row.sample_id === sampleId);
+
+      if (!priceRow || !priceRow.price) {
+        return res.status(404).json({
+          success: false,
+          found: true,
+          description: description,
+          message: "Product found but price data not available",
+        });
+      }
+
+      // Extract price
+      const price = parseFloat(priceRow.price);
 
       return res.json({
         success: true,
@@ -263,42 +155,20 @@ export default function handler(req, res) {
         price: price,
         message: "Product found successfully",
       });
-    } catch (error) {
-      console.error("❌ Server Error:", error.message);
-      console.error("📍 Stack trace:", error.stack);
-      return res.status(500).json({
-        success: false,
-        message: "Server error: " + error.message,
-      });
     }
+
+    // No valid input provided
+    return res.status(400).json({
+      success: false,
+      message: "Please provide either 'imageUrl' in JSON (POST) or 'url' query parameter (GET)",
+    });
+  } catch (error) {
+    console.error("❌ Error in /api/product-by-image:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Server error: " + error.message,
+    });
   }
-
-  res.status(405).json({ message: "Method not allowed" });
 }
 
-// Health check endpoint - useful for debugging
-export async function healthCheck(req, res) {
-  console.log("💚 Health check requested");
-  
-  const sampleTestPath = path.join(process.cwd(), "sample_test.csv");
-  const sampleTestOutPath = path.join(process.cwd(), "sample_test_out.csv");
-  
-  return res.json({
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-    cwd: process.cwd(),
-    files: {
-      testCsv: {
-        path: sampleTestPath,
-        exists: fs.existsSync(sampleTestPath),
-        size: fs.existsSync(sampleTestPath) ? fs.statSync(sampleTestPath).size : 0
-      },
-      priceCsv: {
-        path: sampleTestOutPath,
-        exists: fs.existsSync(sampleTestOutPath),
-        size: fs.existsSync(sampleTestOutPath) ? fs.statSync(sampleTestOutPath).size : 0
-      }
-    }
-  });
-}
+module.exports = handler;

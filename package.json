@@ -2,7 +2,7 @@
   "name": "smart-product-pricing",
   "version": "1.0.0",
   "description": "Smart Product Pricing - AI-powered product price finder",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "build": "cd frontend && npm run build",
     "dev": "concurrently \"cd backend && npm start\" \"cd frontend && npm run dev\"",
@@ -15,10 +15,17 @@
   ],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": "20.x"
+  },
   "devDependencies": {
     "concurrently": "^8.2.0"
   },
   "dependencies": {
+    "cors": "^2.8.6",
+    "csv-parser": "^3.2.0",
+    "express": "^5.2.1",
+    "express-fileupload": "^1.5.2",
     "react-router-dom": "^7.14.0"
   }
 }
