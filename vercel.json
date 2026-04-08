@@ -1,18 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "cd frontend && npm run build",
-  "outputDirectory": "./frontend/dist",  
+  "buildCommand": "npm run build",
   "env": {
     "NODE_ENV": "production"
-  },
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/(?!api).*",
-      "dest": "/index.html"
-    }
-  ]
+  }
 }

@@ -51,6 +51,8 @@ async function loadProducts() {
 // GET /api/products?id=ASIN - Returns specific product
 // ============================================
 async function handler(req, res) {
+  console.log("API HIT: /api/products");
+
   setCorsHeaders(res);
 
   // Handle OPTIONS request for CORS
@@ -58,10 +60,11 @@ async function handler(req, res) {
     return res.status(200).end();
   }
 
+  // Only allow GET requests
   if (req.method !== "GET") {
     return res.status(405).json({
       success: false,
-      message: "Method not allowed. Use GET.",
+      message: "Method not allowed. Use GET."
     });
   }
 
@@ -77,29 +80,31 @@ async function handler(req, res) {
       if (!product) {
         return res.status(404).json({
           success: false,
-          message: "Product not found",
+          message: "Product not found"
         });
       }
 
-      return res.json({
+      return res.status(200).json({
         success: true,
-        data: product,
+        data: product
       });
     }
 
     // ============================================
     // Case 2: Get all products
     // ============================================
-    return res.json({
+    return res.status(200).json({
       success: true,
-      count: products.length,
-      data: products,
+      data: {
+        count: products.length,
+        products: products
+      }
     });
   } catch (error) {
     console.error("❌ Error in /api/products:", error.message);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Server error: " + error.message,
+      message: "Server error: " + error.message
     });
   }
 }

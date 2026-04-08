@@ -18,11 +18,21 @@ function setCorsHeaders(res) {
 // Handles both URL input (POST/GET) and file upload (POST)
 // ============================================
 async function handler(req, res) {
+  console.log("API HIT: /api/product-by-image");
+
   setCorsHeaders(res);
 
   // Handle OPTIONS request for CORS
   if (req.method === "OPTIONS") {
     return res.status(200).end();
+  }
+
+  // Only allow GET and POST
+  if (req.method !== "GET" && req.method !== "POST") {
+    return res.status(405).json({
+      success: false,
+      message: "Method not allowed. Use GET or POST."
+    });
   }
 
   try {
@@ -35,9 +45,11 @@ async function handler(req, res) {
       if (!imageUrl) {
         return res.status(400).json({
           success: false,
-          message: "Image URL cannot be empty",
+          message: "Image URL cannot be empty"
         });
       }
+
+      console.log("🔍 Searching for image URL (POST):", imageUrl);
 
       // Read first 1,000 rows from sample_test.csv
       const sampleTestPath = path.join(process.cwd(), "sample_test.csv");
@@ -60,8 +72,7 @@ async function handler(req, res) {
       if (!matchedProduct) {
         return res.status(404).json({
           success: false,
-          found: false,
-          message: "No product found with this image URL",
+          message: "No product found with this image URL"
         });
       }
 
@@ -76,13 +87,13 @@ async function handler(req, res) {
       const priceRow = priceRows.find((row) => row.sample_id === sampleId);
       const price = priceRow ? parseFloat(priceRow.price) : null;
 
-      return res.json({
+      return res.status(200).json({
         success: true,
-        found: true,
-        description: description,
-        price: price,
-        source: "url-match",
-        message: "Product found successfully",
+        data: {
+          description: description,
+          price: price,
+          source: "url-match"
+        }
       });
     }
 
@@ -90,22 +101,24 @@ async function handler(req, res) {
     // CASE 2: GET with URL query parameter
     // ============================================
     if (req.method === "GET" && req.query && req.query.url) {
-      const imageUrl = req.query.url;
+      const imageUrl = req.query.url.trim();
 
       if (!imageUrl) {
         return res.status(400).json({
           success: false,
-          message: "Missing 'url' query parameter",
+          message: "Missing or empty 'url' query parameter"
         });
       }
 
-      // Read first 100 rows from sample_test.csv
-      const sampleTestPath = path.join(process.cwd(), "sample_test.csv");
-      const testRows = await readCSVWithLimit(sampleTestPath, 100);
+      console.log("🔍 Searching for image URL (GET):", imageUrl);
 
-      // Find matching image (exact match)
+      // Read first 1,000 rows from sample_test.csv (consistent with POST)
+      const sampleTestPath = path.join(process.cwd(), "sample_test.csv");
+      const testRows = await readCSVWithLimit(sampleTestPath, PRODUCT_LIMIT);
+
+      // Find matching image (exact match first)
       let matchedProduct = testRows.find(
-        (row) => row.image_link && row.image_link.trim() === imageUrl.trim()
+        (row) => row.image_link && row.image_link.trim() === imageUrl
       );
 
       // Fallback: Partial match
@@ -120,8 +133,7 @@ async function handler(req, res) {
       if (!matchedProduct) {
         return res.status(404).json({
           success: false,
-          found: false,
-          message: "No product found with this image URL",
+          message: "No product found with this image URL"
         });
       }
 
@@ -129,9 +141,9 @@ async function handler(req, res) {
       const sampleId = matchedProduct.sample_id;
       const description = matchedProduct.catalog_content || "No description available";
 
-      // Read first 100 rows from sample_test_out.csv to find price
+      // Read first 1,000 rows from sample_test_out.csv to find price
       const sampleTestOutPath = path.join(process.cwd(), "sample_test_out.csv");
-      const priceRows = await readCSVWithLimit(sampleTestOutPath, 100);
+      const priceRows = await readCSVWithLimit(sampleTestOutPath, PRODUCT_LIMIT);
 
       // Find matching price
       const priceRow = priceRows.find((row) => row.sample_id === sampleId);
@@ -139,34 +151,33 @@ async function handler(req, res) {
       if (!priceRow || !priceRow.price) {
         return res.status(404).json({
           success: false,
-          found: true,
-          description: description,
-          message: "Product found but price data not available",
+          message: "Product found but price data not available"
         });
       }
 
       // Extract price
       const price = parseFloat(priceRow.price);
 
-      return res.json({
+      return res.status(200).json({
         success: true,
-        found: true,
-        description: description,
-        price: price,
-        message: "Product found successfully",
+        data: {
+          description: description,
+          price: price,
+          source: "url-match"
+        }
       });
     }
 
     // No valid input provided
     return res.status(400).json({
       success: false,
-      message: "Please provide either 'imageUrl' in JSON (POST) or 'url' query parameter (GET)",
+      message: "Please provide either 'imageUrl' in JSON body (POST) or 'url' query parameter (GET)"
     });
   } catch (error) {
     console.error("❌ Error in /api/product-by-image:", error.message);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Server error: " + error.message,
+      message: "Server error: " + error.message
     });
   }
 }
