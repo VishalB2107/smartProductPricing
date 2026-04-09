@@ -132,7 +132,7 @@ cd "C:\Users\Vishal B\Documents\smartProductPricing"
 vercel
 
 # Follow prompts, select your project
-```
+``
 
 ### Step 4: Verify Deployment
 
